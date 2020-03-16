@@ -362,8 +362,10 @@ class MSG_GAN:
             # pass of the function (not during accumulation).
             if self.use_ema:
                 self.ema_updater(self.gen_shadow, self.gen, self.ema_decay)
-        
+
         return loss.item()
+
+
 
     def create_grid(self, samples, img_files,
                     sum_writer=None, reses=None, step=None):
@@ -380,7 +382,7 @@ class MSG_GAN:
         from torch.nn.functional import interpolate
         from numpy import sqrt, power, ceil
 
-        # dynamically adjust the colour range of the images:       
+        # dynamically adjust the colour range of the images:
         samples = [Generator.adjust_dynamic_range(sample) for sample in samples]
 
         # resize the samples to have same resolution:
@@ -441,14 +443,41 @@ class MSG_GAN:
 
         return images, gan_input
 
-    def train(self, data, gen_optim, dis_optim, loss_fn, normalize_latents=True,
-              start=1, num_epochs=12, spoofing_factor=1,
-              feedback_factor=10, checkpoint_factor=1,
-              data_percentage=100, num_samples=36,
-              log_dir=None, sample_dir="./samples", 
-              log_fid_values=False, num_fid_images=50000,
-              save_dir="./models", fid_temp_folder="./samples/fid_imgs/",
-              fid_real_stats=None, fid_batch_size=64):
+
+    def save_model_to_bucket(self, file_to_copy, bucket_path, bucket_subdir):
+        # Copies model to google cloud storage bucket.
+        #
+        import subprocess
+
+        subprocess.check_call([
+            'gsutil', 'cp',
+            file_to_copy,
+            bucket_path + bucket_subdir
+        ])
+
+
+    def train(self,
+              data,
+              gen_optim,
+              dis_optim,
+              loss_fn,
+              normalize_latents=True,
+              start=1,
+              num_epochs=12,
+              spoofing_factor=1,
+              feedback_factor=10,
+              checkpoint_factor=1,
+              data_percentage=100,
+              num_samples=36,
+              log_dir=None,
+              sample_dir="./samples",
+              log_fid_values=False,
+              num_fid_images=50000,
+              save_dir="./models",
+              fid_temp_folder="./samples/fid_imgs/",
+              fid_real_stats=None,
+              fid_batch_size=64,
+              gcloud_bucket=None):
         """
         Method for training the network
         :param data: pytorch dataloader which iterates over images
@@ -483,10 +512,12 @@ class MSG_GAN:
         from tensorboardX import SummaryWriter
         from shutil import rmtree
         from tqdm import tqdm
-        from scipy.misc import imsave
+        # from scipy.misc import imsave
+        from imageio import imwrite as imsave
         from MSG_GAN.FID import fid_score
         from math import ceil
         from MSG_GAN.utils.iter_utils import hn_wrapper
+
 
         # turn the generator and discriminator into train mode
         self.gen.train()
@@ -689,13 +720,45 @@ class MSG_GAN:
                 th.save(gen_optim.state_dict(), gen_optim_save_file)
                 th.save(dis_optim.state_dict(), dis_optim_save_file)
 
+                # If we've specified a location to save models in the cloud,
+                # we are training on big hardware, so save progress.
+                #
+                if gcloud_bucket is not None:
+                    # Save generator to cloud bucket.
+                    #
+                    self.save_model_to_bucket(file_to_copy=gen_save_file,
+                                              bucket_path=gcloud_bucket,
+                                              bucket_subdir="/models/")
+                    # Save generator to cloud bucket.
+                    #
+                    self.save_model_to_bucket(file_to_copy=dis_save_file,
+                                              bucket_path=gcloud_bucket,
+                                              bucket_subdir="/models/")
+                    # Save optimizer state to cloud bucket.
+                    #
+                    self.save_model_to_bucket(file_to_copy=gen_optim_save_file,
+                                              bucket_path=gcloud_bucket,
+                                              bucket_subdir="/models/")
+                    # Save optimizer state to cloud bucket.
+                    #
+                    self.save_model_to_bucket(file_to_copy=dis_optim_save_file,
+                                              bucket_path=gcloud_bucket,
+                                              bucket_subdir="/models/")
+
+
                 if self.use_ema:
                     gen_shadow_save_file = os.path.join(save_dir, "GAN_GEN_SHADOW_"
                                                         + str(epoch) + ".pth")
                     th.save(self.gen_shadow.state_dict(), gen_shadow_save_file)
 
+                    if gcloud_bucket is not None:
+                        self.save_model_to_bucket(file_to_copy=gen_shadow_save_file,
+                                                  bucket_path=gcloud_bucket,
+                                                  bucket_subdir="/models/")
+
+
                 print("log_fid_values:", log_fid_values)
-                if log_fid_values:  # perform the following fid calculations during training 
+                if log_fid_values:  # perform the following fid calculations during training
                     # if the boolean is set to true
                     # ==================================================================
                     # Perform the FID calculation during training for estimating

@@ -50,7 +50,7 @@ def parse_arguments():
                              "1.) cifar-10")
 
     parser.add_argument("--images_dir", action="store", type=str,
-                        default="../data/celeba",
+                        default="/workdir/data",
                         help="path for the images directory")
 
     parser.add_argument("--folder_distributed", action="store", type=bool,
@@ -62,11 +62,11 @@ def parse_arguments():
                         help="whether to randomly mirror the images during training")
 
     parser.add_argument("--sample_dir", action="store", type=str,
-                        default="samples/1/",
+                        default="/workdir/samples",
                         help="path for the generated samples directory")
 
     parser.add_argument("--model_dir", action="store", type=str,
-                        default="models/1/",
+                        default="/workdir/models",
                         help="path for saved models directory")
 
     parser.add_argument("--loss_function", action="store", type=str,
@@ -98,11 +98,11 @@ def parse_arguments():
                         help="starting epoch number")
 
     parser.add_argument("--num_epochs", action="store", type=int,
-                        default=1000,
+                        default=10,
                         help="number of epochs for training")
 
     parser.add_argument("--feedback_factor", action="store", type=int,
-                        default=10,
+                        default=5,
                         help="number of logs to generate per epoch")
 
     parser.add_argument("--num_samples", action="store", type=int,
@@ -175,6 +175,15 @@ def parse_arguments():
                         default=64,
                         help="Batch size used for the fid computation" +
                              "(Both image generation and fid calculation)")
+
+    # =======================================================================================
+    # Cloud storage related args ... :)
+    # =======================================================================================
+
+    parser.add_argument("--gcloud_bucket", action="store", type=str,
+                        default=None,
+                        help="name of google cloud storage bucket e.g. gs://bucket_name")
+
 
     # ========================================================================================
 
@@ -301,7 +310,8 @@ def main(args):
         num_fid_images=args.num_fid_images,
         fid_temp_folder=args.fid_temp_folder,
         fid_real_stats=args.fid_real_stats,
-        fid_batch_size=args.fid_batch_size
+        fid_batch_size=args.fid_batch_size,
+        gcloud_bucket=args.gcloud_bucket
     )
 
 
